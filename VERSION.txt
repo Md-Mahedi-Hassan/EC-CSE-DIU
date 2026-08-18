@@ -1,0 +1,5 @@
+Version 33
+- Fixed first-day Slot A duty detection for the uploaded Final Examination Summer 2026 roster.
+- The parser now calculates the first duty-column boundary from the header columns instead of using a hard-coded page-width threshold.
+- Kept video background, campus-photo fallback, typing freeze, attendance logic, DOCX/PDF behavior, and all Version 32 behavior.
+- Included the uploaded roster as duty-roster.pdf.

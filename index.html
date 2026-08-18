@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#f4f6f1">
+    <meta name="description" content="Search the CSE invigilator duty roster by faculty name or initial.">
+    <title>My Invigilation Duty</title>
+    <link rel="stylesheet" href="./styles.css?v=33">
+    <link rel="stylesheet" href="./site-video-background-v30.css?v=33">
+  </head>
+  <body>
+    <video class="site-bg-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true">
+      <source src="./diu.mp4?v=33" type="video/mp4">
+    </video>
+    <div class="site-bg-freeze-photo" aria-hidden="true"></div>
+    <div class="site-video-overlay" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="./">
+        <span class="brand-mark" aria-hidden="true">CSE</span>
+        <span>
+          <strong>Invigilation Duty Finder</strong>
+          <small>Department of CSE</small>
+        </span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a class="active" href="./index.html">Duty Roster</a>
+        <a href="./guidelines.html">Examination Guidelines</a>
+        <a href="./committee.html">Exam Committee</a>
+        <a href="./attendance.html">Attendance Sheet</a>
+      </nav>
+      <div class="header-actions">
+        <span class="data-status" id="dataStatus"><i></i> Loading roster</span>
+        <button class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
+          <span class="theme-track"><i></i></span>
+          <span class="theme-label">Light</span>
+        </button>
+        <button class="icon-button" id="reloadButton" type="button" title="Reload the roster PDF" aria-label="Reload roster">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6.2 6.2L4 8m16 8-2.2 1.8A7 7 0 0 1 5.5 15"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="search-hero">
+        <div class="published-title hidden" id="publishedTitle">
+          <span>Published roster</span>
+          <strong id="publishedTitleText"></strong>
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Faculty duty lookup</p>
+          <h1>Find your exam duties.</h1>
+          <p>Search by your full name or faculty initial to see a clean, personal summary of your invigilation schedule.</p>
+        </div>
+
+        <div class="search-box" id="searchBox">
+          <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>
+          </svg>
+          <input id="facultySearch" type="search" placeholder="Type a name or initial, e.g. NNM" autocomplete="off" disabled>
+          <button id="clearSearch" class="clear-button hidden" type="button" aria-label="Clear search">x</button>
+          <div class="suggestions hidden" id="suggestions" role="listbox"></div>
+        </div>
+
+        <div class="roster-meta" id="rosterMeta">
+          <span id="facultyCount">Reading faculty directory...</span>
+          <a href="./duty-roster.pdf" target="_blank" rel="noopener">View complete PDF</a>
+        </div>
+      </section>
+
+      <section class="loading-panel" id="loadingPanel" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>
+          <strong>Preparing the duty roster</strong>
+          <p id="loadingDetail">Opening duty-roster.pdf...</p>
+        </div>
+      </section>
+
+      <section class="error-panel hidden" id="errorPanel" role="alert">
+        <div class="error-icon">!</div>
+        <div>
+          <strong>The roster PDF could not be read</strong>
+          <p id="errorMessage"></p>
+          <p>Confirm that a text-based PDF named <code>duty-roster.pdf</code> exists beside <code>index.html</code>.</p>
+          <button class="secondary-button" id="tryAgainButton" type="button">Try again</button>
+        </div>
+      </section>
+
+      <section class="empty-state" id="emptyState">
+        <div class="empty-calendar" aria-hidden="true">
+          <span></span>
+          <b>ABC</b>
+        </div>
+        <h2>Your personal roster will appear here</h2>
+        <p>Choose yourself from the search results to view dates, slots, times, and the total number of duties.</p>
+      </section>
+
+      <section class="person-results hidden" id="personResults">
+        <div class="priority-reminder">
+          <span class="reminder-icon">!</span>
+          <div>
+            <strong>Important reminder</strong>
+            <p>Collect answer scripts and question papers from the exam control room at least 20 minutes before the exam starts.</p>
+          </div>
+        </div>
+
+        <div class="profile-bar">
+          <div class="avatar" id="facultyAvatar">NN</div>
+          <div class="profile-copy">
+            <div class="profile-title">
+              <h2 id="facultyName"></h2>
+              <span class="initial-pill" id="facultyInitial"></span>
+            </div>
+            <p><span id="facultyDesignation"></span><span class="separator">/</span><span id="facultyGroup"></span></p>
+          </div>
+          <div class="profile-actions">
+            <button class="secondary-action" id="printRosterButton" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/>
+              </svg>
+              Download PDF
+            </button>
+            <button class="download-button" id="downloadImageButton" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 19h14"/>
+              </svg>
+              Download image
+            </button>
+          </div>
+        </div>
+
+        <div class="contact-strip">
+          <div>
+            <span>Phone</span>
+            <a id="facultyPhone" href="#"></a>
+          </div>
+          <div>
+            <span>Email</span>
+            <a id="facultyEmail" href="#"></a>
+          </div>
+          <div>
+            <span>Faculty directory status</span>
+            <strong id="contactMatchStatus"></strong>
+          </div>
+        </div>
+
+        <div class="outside-notice hidden" id="outsideNotice">
+          This faculty member is marked as also assigned to an M.Sc. exam or invigilation duty outside CSE.
+        </div>
+
+        <div class="summary-grid">
+          <article class="summary-card">
+            <span>Total duties</span>
+            <strong id="totalDuties">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Duty days</span>
+            <strong id="totalDays">0</strong>
+          </article>
+          <article class="summary-card next-card">
+            <span>First listed duty</span>
+            <strong id="firstDuty">-</strong>
+          </article>
+        </div>
+
+        <div class="no-duty hidden" id="noDuty">
+          <strong>No CSE invigilation duty is listed for this faculty member.</strong>
+          <p>This faculty member may be listed in faculty-list.pdf even if no duty is assigned in duty-roster.pdf.</p>
+        </div>
+
+        <div class="schedule-panel" id="schedulePanel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Personal schedule</p>
+              <h3>Duty breakdown</h3>
+            </div>
+            <span id="examTitle"></span>
+          </div>
+          <div class="duty-list" id="dutyList"></div>
+        </div>
+
+      </section>
+    </main>
+
+    <footer class="developer-footer">
+      <a href="https://www.facebook.com/mehedihasan.tishan" target="_blank" rel="noopener noreferrer">Developed by Md. Mahedi Hassan</a>
+    </footer>
+
+    <script type="module" src="./theme.js?v=33"></script>
+    <script type="module" src="./app.js?v=33"></script>
+    <script type="module" src="./roster-background-focus-v33.js?v=33"></script>
+      <script type="module" src="./site-video-fallback-v33.js?v=33"></script>
+  </body>
+</html>

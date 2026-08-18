@@ -1,0 +1,1 @@
+{"type":"module","scripts":{"check":"node --check app.js && node --check attendance.js && node --check committee.js && node --check guidelines.js && node --check theme.js"}}

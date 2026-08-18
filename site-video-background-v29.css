@@ -1,0 +1,134 @@
+/* Version 29 video background
+   Put diu.mp4 in the repository root. Every page loads it as a muted looping background video. */
+
+html {
+  min-height: 100%;
+  background: #eef7ef;
+}
+
+body {
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  background: transparent !important;
+}
+
+.site-bg-video {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  object-position: center center;
+  z-index: -3;
+  pointer-events: none;
+  background: #eef7ef;
+}
+
+.site-video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.42), transparent 46%),
+    linear-gradient(rgba(248, 252, 249, 0.80), rgba(248, 252, 249, 0.80));
+}
+
+.topbar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.search-box,
+.suggestions,
+.loading-panel,
+.error-panel,
+.profile-bar,
+.contact-strip,
+.summary-card,
+.no-duty,
+.schedule-panel,
+.slot-section,
+.guideline-panel,
+.committee-toolbar,
+.committee-card,
+.attendance-panel,
+.generator-panel,
+.assignment-panel,
+.assignment-room,
+.assignment-card,
+.attendance-summary > div,
+.preview-table-wrap {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+[data-theme="dark"] html {
+  background: #08110c;
+}
+
+[data-theme="dark"] body {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .site-bg-video {
+  background: #08110c;
+}
+
+[data-theme="dark"] .site-video-overlay {
+  background:
+    radial-gradient(circle at top left, rgba(49, 120, 78, 0.24), transparent 42%),
+    linear-gradient(rgba(5, 11, 8, 0.80), rgba(5, 11, 8, 0.80));
+}
+
+[data-theme="dark"] .topbar {
+  background: rgba(18, 27, 22, 0.92) !important;
+}
+
+[data-theme="dark"] .search-box,
+[data-theme="dark"] .suggestions,
+[data-theme="dark"] .loading-panel,
+[data-theme="dark"] .error-panel,
+[data-theme="dark"] .profile-bar,
+[data-theme="dark"] .contact-strip,
+[data-theme="dark"] .summary-card,
+[data-theme="dark"] .no-duty,
+[data-theme="dark"] .schedule-panel,
+[data-theme="dark"] .slot-section,
+[data-theme="dark"] .guideline-panel,
+[data-theme="dark"] .committee-toolbar,
+[data-theme="dark"] .committee-card,
+[data-theme="dark"] .attendance-panel,
+[data-theme="dark"] .assignment-card,
+[data-theme="dark"] .assignment-room,
+[data-theme="dark"] .attendance-summary > div,
+[data-theme="dark"] .preview-table-wrap {
+  background-color: rgba(26, 35, 30, 0.94) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-bg-video {
+    display: none;
+  }
+
+  .site-video-overlay {
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.42), transparent 46%),
+      linear-gradient(135deg, rgba(236, 247, 239, 0.96), rgba(215, 236, 222, 0.96));
+  }
+
+  [data-theme="dark"] .site-video-overlay {
+    background:
+      radial-gradient(circle at top left, rgba(49, 120, 78, 0.24), transparent 42%),
+      linear-gradient(135deg, rgba(5, 11, 8, 0.96), rgba(18, 35, 24, 0.96));
+  }
+}
+
+@media (max-width: 760px) {
+  .site-bg-video {
+    object-position: center top;
+  }
+}

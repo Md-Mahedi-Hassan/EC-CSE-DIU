@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#f4f6f1">
+    <title>Exam Committee Contacts</title>
+    <link rel="stylesheet" href="./styles.css?v=33">
+    <link rel="stylesheet" href="./site-video-background-v30.css?v=33">
+  </head>
+  <body>
+    <video class="site-bg-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true">
+      <source src="./diu.mp4?v=33" type="video/mp4">
+    </video>
+    <div class="site-bg-freeze-photo" aria-hidden="true"></div>
+    <div class="site-video-overlay" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark">CSE</span>
+        <span><strong>Invigilation Duty Finder</strong><small>Department of CSE</small></span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="./index.html">Duty Roster</a>
+        <a href="./guidelines.html">Examination Guidelines</a>
+        <a class="active" href="./committee.html">Exam Committee</a>
+        <a href="./attendance.html">Attendance Sheet</a>
+      </nav>
+      <div class="header-actions">
+        <span class="data-status" id="committeeStatus"><i></i> Loading contacts</span>
+        <button class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
+          <span class="theme-track"><i></i></span>
+          <span class="theme-label">Light</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content-main">
+      <section class="page-heading">
+        <p class="eyebrow">People to contact</p>
+        <h1>Exam Committee</h1>
+        <p>Name, designation, committee role, phone number, and email extracted from the published committee PDF.</p>
+      </section>
+
+      <section class="emergency-banner">
+        <div class="emergency-symbol">!</div>
+        <div>
+          <span>Exam-time emergency contact</span>
+          <strong><a href="tel:01847140044">01847140044</a></strong>
+          <p>Exam Control Room: KT-204. This number will be available only during examination time.</p>
+        </div>
+      </section>
+
+      <section class="committee-toolbar">
+        <div>
+          <strong id="committeeCount">Reading exam-committee.pdf...</strong>
+          <p>Use the phone and email links to contact a committee member directly.</p>
+        </div>
+        <a class="secondary-action" href="./exam-committee.pdf" target="_blank" rel="noopener">Open source PDF</a>
+      </section>
+
+      <section class="committee-grid" id="committeeGrid">
+        <div class="guideline-loading"><span class="spinner"></span> Preparing committee directory...</div>
+      </section>
+
+      <section class="error-panel hidden" id="committeeError" role="alert">
+        <div class="error-icon">!</div>
+        <div><strong>Committee contacts could not be loaded</strong><p id="committeeErrorText"></p></div>
+      </section>
+    </main>
+
+    <footer class="developer-footer">
+      <a href="https://www.facebook.com/mehedihasan.tishan" target="_blank" rel="noopener noreferrer">Developed by Md. Mahedi Hassan</a>
+    </footer>
+    <script type="module" src="./theme.js?v=33"></script>
+    <script type="module" src="./committee.js?v=33"></script>
+      <script type="module" src="./site-video-fallback-v33.js?v=33"></script>
+  </body>
+</html>

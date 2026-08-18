@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#f4f6f1">
+    <title>Examination Guidelines</title>
+    <link rel="stylesheet" href="./styles.css?v=33">
+    <link rel="stylesheet" href="./site-video-background-v30.css?v=33">
+  </head>
+  <body>
+    <video class="site-bg-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true">
+      <source src="./diu.mp4?v=33" type="video/mp4">
+    </video>
+    <div class="site-bg-freeze-photo" aria-hidden="true"></div>
+    <div class="site-video-overlay" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark">CSE</span>
+        <span><strong>Invigilation Duty Finder</strong><small>Department of CSE</small></span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="./index.html">Duty Roster</a>
+        <a class="active" href="./guidelines.html">Examination Guidelines</a>
+        <a href="./committee.html">Exam Committee</a>
+        <a href="./attendance.html">Attendance Sheet</a>
+      </nav>
+      <div class="header-actions">
+        <span class="data-status" id="guidelineStatus"><i></i> Loading notice</span>
+        <button class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
+          <span class="theme-track"><i></i></span>
+          <span class="theme-label">Light</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content-main">
+      <section class="page-heading">
+        <p class="eyebrow">Published instructions</p>
+        <h1>Examination Guidelines</h1>
+        <p id="guidelineTitle">Guidelines and notices extracted from duty-roster.pdf.</p>
+      </section>
+
+      <section class="emergency-banner">
+        <div class="emergency-symbol">!</div>
+        <div>
+          <span>Exam-time emergency contact</span>
+          <strong><a href="tel:01847140044">01847140044</a></strong>
+          <p>Exam Control Room: KT-204. This number will be available only during examination time.</p>
+        </div>
+      </section>
+
+      <section class="slot-section">
+        <div class="section-heading plain">
+          <div><p class="eyebrow">Timing</p><h2>Exam Slot Schedule</h2></div>
+          <span id="centerName">Center: KT-204</span>
+        </div>
+        <div class="slot-overview" id="slotOverview">
+          <article><b class="slot-badge slot-a">A</b><div><span>Slot A</span><strong>Reading from duty-roster.pdf...</strong></div></article>
+          <article><b class="slot-badge slot-b">B</b><div><span>Slot B</span><strong>Reading from duty-roster.pdf...</strong></div></article>
+          <article><b class="slot-badge slot-c">C</b><div><span>Slot C</span><strong>Reading from duty-roster.pdf...</strong></div></article>
+        </div>
+      </section>
+
+      <section class="notice-callout" id="markedNotice">
+        Faculty members marked with an asterisk are also assigned to an M.Sc. examination or invigilation duty outside CSE.
+      </section>
+
+      <section class="guideline-panel">
+        <div class="section-heading plain">
+          <div><p class="eyebrow">Important notice</p><h2>Instructions for Invigilators</h2></div>
+          <a href="./duty-roster.pdf" target="_blank" rel="noopener">Open source PDF</a>
+        </div>
+        <div class="guideline-list" id="guidelineList">
+          <div class="guideline-loading"><span class="spinner"></span> Reading published guidelines...</div>
+        </div>
+      </section>
+
+      <section class="cooperation-note" id="cooperationNote">
+        As per the decision of the authority, there will be no day-off during the examinations. Faculty members are requested to attend their assigned duties on time for smooth conduction of the examinations.
+      </section>
+    </main>
+
+    <footer class="developer-footer">
+      <a href="https://www.facebook.com/mehedihasan.tishan" target="_blank" rel="noopener noreferrer">Developed by Md. Mahedi Hassan</a>
+    </footer>
+    <script type="module" src="./theme.js?v=33"></script>
+    <script type="module" src="./guidelines.js?v=33"></script>
+      <script type="module" src="./site-video-fallback-v33.js?v=33"></script>
+  </body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#f4f6f1">
+    <title>Attendance Sheet Generator</title>
+    <link rel="stylesheet" href="./styles.css?v=33">
+    <link rel="stylesheet" href="./site-video-background-v30.css?v=33">
+  </head>
+  <body class="attendance-classic">
+    <video class="site-bg-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true">
+      <source src="./diu.mp4?v=33" type="video/mp4">
+    </video>
+    <div class="site-bg-freeze-photo" aria-hidden="true"></div>
+    <div class="site-video-overlay" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="./index.html">
+        <span class="brand-mark">CSE</span>
+        <span><strong>Invigilation Duty Finder</strong><small>Department of CSE</small></span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="./index.html">Duty Roster</a>
+        <a href="./guidelines.html">Examination Guidelines</a>
+        <a href="./committee.html">Exam Committee</a>
+        <a class="active" href="./attendance.html">Attendance Sheet</a>
+      </nav>
+      <div class="header-actions">
+        <span class="data-status" id="attendanceStatus"><i></i> Loading data</span>
+        <button class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch theme">
+          <span class="theme-track"><i></i></span>
+          <span class="theme-label">Light</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content-main">
+      <section class="page-heading">
+        <p class="eyebrow">Exam committee tool</p>
+        <h1>Attendance Sheet Generator</h1>
+        <p>Choose an exam date and slot. The system reads the duty roster, reads the matching seat-plan PDF, assigns invigilators by room, and creates an editable attendance sheet before download.</p>
+      </section>
+
+      <section class="generator-panel">
+        <div class="generator-controls">
+          <label>
+            <span>Exam date</span>
+            <select id="dateSelect" disabled>
+              <option>Loading dates...</option>
+            </select>
+          </label>
+          <label>
+            <span>Slot</span>
+            <select id="slotSelect" disabled>
+              <option>A</option>
+              <option>B</option>
+              <option>C</option>
+            </select>
+          </label>
+          <button class="download-button" id="generateButton" type="button" disabled>Generate sheet</button>
+        </div>
+        <p class="file-hint" id="fileHint">Seat-plan PDFs should be uploaded in the repository root. Example: <code>27A_Seat Plan.pdf</code>.</p>
+      </section>
+
+      <section class="error-panel hidden" id="attendanceError" role="alert">
+        <div class="error-icon">!</div>
+        <div><strong>Attendance sheet could not be generated</strong><p id="attendanceErrorText"></p></div>
+      </section>
+
+      <section class="attendance-summary hidden" id="attendanceSummary">
+        <div>
+          <span>Seat plan</span>
+          <strong id="seatPlanName">-</strong>
+        </div>
+        <div>
+          <span>Rooms</span>
+          <strong id="roomCount">0</strong>
+        </div>
+        <div>
+          <span>Students</span>
+          <strong id="studentCount">0</strong>
+        </div>
+        <div>
+          <span>Required invigilators</span>
+          <strong id="invigilatorCount">0</strong>
+        </div>
+      </section>
+
+      <section class="assignment-panel hidden" id="assignmentPanel">
+        <div class="section-heading plain">
+          <div>
+            <p class="eyebrow">Editable before download</p>
+            <h2 id="assignmentTitle">Room assignments</h2>
+          </div>
+          <div class="assignment-actions">
+            <button class="secondary-action" id="regenerateButton" type="button">Regenerate</button>
+            <button class="download-button" id="downloadAttendanceButton" type="button">Download attendance PDF</button>
+            <button class="secondary-action" id="downloadAttendanceDocxButton" type="button">Download attendance DOCX</button>
+          </div>
+        </div>
+        <div class="assignment-list" id="assignmentList"></div>
+        <div class="warning-list hidden" id="warningList"></div>
+      </section>
+    </main>
+
+    <footer class="developer-footer">
+      <a href="https://www.facebook.com/mehedihasan.tishan" target="_blank" rel="noopener noreferrer">Developed by Md. Mahedi Hassan</a>
+    </footer>
+    <script type="module" src="./theme.js?v=33"></script>
+    <script type="module" src="./attendance.js?v=33"></script>
+      <script type="module" src="./site-video-fallback-v33.js?v=33"></script>
+  </body>
+</html>
