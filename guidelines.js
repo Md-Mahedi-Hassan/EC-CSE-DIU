@@ -138,7 +138,7 @@ async function loadGuidelines() {
     const allLines = pages.flatMap((page) => page.lines);
     const allText = lines.map((line) => line.text).join(" ");
     const publishedTitle = allLines.find((line) => /Invigilator'?s Duty (Plan|Roster)/i.test(line.text))?.text;
-    if (publishedTitle) title.textContent = `Extracted from ${publishedTitle}.`;
+    if (title) title.textContent = "";
 
     const times = extractSlotTimes(allLines, {});
     slotOverview.innerHTML = SLOT_LABELS.map((slot) => `

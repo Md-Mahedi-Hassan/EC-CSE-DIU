@@ -19,6 +19,8 @@ const ui = {
   facultyDesignation: $("#facultyDesignation"),
   facultyGroup: $("#facultyGroup"),
   outsideNotice: $("#outsideNotice"),
+  annexNotice: $("#annexNotice"),
+  annexNoticeDetails: $("#annexNoticeDetails"),
   totalDuties: $("#totalDuties"),
   totalDays: $("#totalDays"),
   firstDuty: $("#firstDuty"),
@@ -158,6 +160,11 @@ function cleanInitial(value) {
   return String(value || "").replace(/[^A-Za-z]/g, "").toUpperCase();
 }
 
+function avatarInitial(person) {
+  const actualInitial = cleanInitial(person?.initial || person?.contact?.initial);
+  return actualInitial || initialsFromName(person?.name || person?.contact?.name || "");
+}
+
 function nameCloseness(leftName, rightName) {
   const left = comparableName(leftName);
   const right = comparableName(rightName);
@@ -215,7 +222,7 @@ async function pdfLinesFromUrl(url, progressLabel = "") {
   const pages = [];
 
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    if (progressLabel) ui.loadingDetail.textContent = `${progressLabel}: page ${pageNumber} of ${document.numPages}...`;
+    if (progressLabel && ui.loadingDetail) ui.loadingDetail.textContent = `${progressLabel}: page ${pageNumber} of ${document.numPages}...`;
     const page = await document.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
     const content = await page.getTextContent();
@@ -227,9 +234,56 @@ async function pdfLinesFromUrl(url, progressLabel = "") {
         y: viewport.height - item.transform[5],
         width: Math.max(item.width || 0, item.str.length * 2.5),
       }));
-    pages.push({ pageNumber, width: viewport.width, height: viewport.height, lines: groupItemsIntoLines(items) });
+    // The Annex marker is a colored PDF-cell background, not text. Sample the
+    // rendered page once and associate the actual cell fill with each duty letter.
+    const sampleDutyMarker = await createDutyBackgroundSampler(page, viewport);
+    pages.push({ pageNumber, width: viewport.width, height: viewport.height, lines: groupItemsIntoLines(items), sampleDutyMarker });
   }
   return { pages, pageCount: document.numPages };
+}
+
+// Do not classify ordinary pastel-red/pink A-slot columns as Annex indicators.
+// The approved source uses vivid green (#00FF00); distinctly strong red cells
+// are also supported, while pale pink, peach, and blue remain ordinary slots.
+function annexFillKind(red, green, blue) {
+  if (green >= 155 && red <= 145 && blue <= 145 && green >= red * 1.5 && green >= blue * 1.35) return "green";
+  if (red >= 165 && green <= 138 && blue <= 138 && red >= green * 1.35 && red >= blue * 1.35) return "red";
+  return "";
+}
+
+async function createDutyBackgroundSampler(page, viewport) {
+  const scale = 1.5;
+  const renderViewport = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(renderViewport.width);
+  canvas.height = Math.ceil(renderViewport.height);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Cannot inspect the roster's Annex color markers in this browser.");
+  await page.render({ canvasContext: context, viewport: renderViewport, background: "#ffffff" }).promise;
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  canvas.width = 0;
+  canvas.height = 0;
+
+  return (item) => {
+    // Sample just outside the ink of each A/B/C glyph and away from cell borders.
+    // Text baselines are PDF bottom-origin, while canvas is top-origin.
+    const x = (item.x + item.width / 2) * scale;
+    const y = item.y * scale;
+    const counts = { green: 0, red: 0 };
+    for (const dx of [-7, -6, 6, 7]) {
+      for (const dy of [-8, -6, -4]) {
+        const px = Math.round(x + dx * scale);
+        const py = Math.round(y + dy * scale);
+        if (px < 0 || py < 0 || px >= width || py >= height) continue;
+        const at = (py * width + px) * 4;
+        if (data[at + 3] < 180) continue;
+        const kind = annexFillKind(data[at], data[at + 1], data[at + 2]);
+        if (kind) counts[kind] += 1;
+      }
+    }
+    // Two supporting samples avoid false positives from text edges / cell rules.
+    return counts.green >= 2 ? "green" : counts.red >= 2 ? "red" : "";
+  };
 }
 
 function itemCenter(item) {
@@ -309,7 +363,11 @@ function readableGroup(group) {
     .replace(/Other Departments-Faculty/i, "Other Departments Faculty");
 }
 
-function parseFacultyRows(lines, pageNumber, pageWidth, header, currentGroup) {
+function cleanDesignation(value) {
+  return cleanText(value).replace(/\s+[ABC]$/i, "");
+}
+
+function parseFacultyRows(lines, pageNumber, pageWidth, header, currentGroup, sampleDutyMarker) {
   const people = [];
   let group = currentGroup;
 
@@ -336,8 +394,9 @@ function parseFacultyRows(lines, pageNumber, pageWidth, header, currentGroup) {
     if (!name) continue;
 
     const rawInitial = textInColumn(remainingItems, pageWidth * 0.33, pageWidth * 0.396).replace(/\s+/g, "");
-    const designation = textInColumn(remainingItems, pageWidth * 0.396, pageWidth * 0.515);
     const dutyStartX = dutyColumnStartX(header, pageWidth);
+    const designationEndX = Math.min(pageWidth * 0.515, dutyStartX);
+    const designation = textInColumn(remainingItems, pageWidth * 0.396, designationEndX);
     const dutyItems = line.items.filter((item) => itemCenter(item) >= dutyStartX && /^[ABC]$/.test(item.text));
     const duties = [];
 
@@ -348,11 +407,14 @@ function parseFacultyRows(lines, pageNumber, pageWidth, header, currentGroup) {
       if (!date) continue;
       const key = `${date.label}-${column.slot}`;
       if (duties.some((duty) => duty.key === key)) continue;
+      const annexColor = sampleDutyMarker?.(item) || "";
       duties.push({
         key,
         date: date.label,
         day: date.day,
         slot: column.slot,
+        annex: Boolean(annexColor),
+        annexColor,
         order: column.dateIndex * 10 + "ABC".indexOf(column.slot),
       });
     }
@@ -364,7 +426,7 @@ function parseFacultyRows(lines, pageNumber, pageWidth, header, currentGroup) {
       name,
       initial: rawInitial.replace(/^\*/, ""),
       marked: rawInitial.startsWith("*"),
-      designation: designation || "Designation not listed",
+      designation: cleanDesignation(designation) || "Designation not listed",
       group: readableGroup(group || "Faculty"),
       duties: duties.sort((a, b) => a.order - b.order),
     });
@@ -410,14 +472,14 @@ async function parseRosterPdf() {
   let times = { ...DEFAULT_TIMES };
 
   for (const page of source.pages) {
-    const { pageNumber, lines, width } = page;
+    const { pageNumber, lines, width, sampleDutyMarker } = page;
     const pageHeader = extractHeader(lines, width);
 
     if (!primaryHeader && pageHeader.dates.length && pageHeader.columns.length) primaryHeader = pageHeader;
     if (!title) title = findTitle(lines);
     times = extractSlotTimes(lines, times);
 
-    const parsed = parseFacultyRows(lines, pageNumber, width, pageHeader.dates.length ? pageHeader : primaryHeader, currentGroup);
+    const parsed = parseFacultyRows(lines, pageNumber, width, pageHeader.dates.length ? pageHeader : primaryHeader, currentGroup, sampleDutyMarker);
     people.push(...parsed.people);
     currentGroup = parsed.group;
   }
@@ -432,6 +494,8 @@ async function parseRosterPdf() {
       title: title || "Invigilator Duty Roster",
       year: yearMatch ? Number(yearMatch[1]) : new Date().getFullYear(),
       dates: primaryHeader.dates,
+      slotsByDate: Object.fromEntries(primaryHeader.dates.map((date, index) => [date.label,
+        [...new Set(primaryHeader.columns.filter((column) => column.dateIndex === index).map((column) => column.slot))]])),
       times,
       pages: source.pageCount,
     },
@@ -618,7 +682,7 @@ function setReadyState() {
   ui.errorPanel.classList.add("hidden");
   ui.emptyState.classList.remove("hidden");
   ui.search.disabled = false;
-  ui.facultyCount.textContent = `${directory.length} searchable faculty records and ${facultyContacts.length} faculty contacts indexed`;
+  if (ui.facultyCount) ui.facultyCount.textContent = "";
   ui.publishedTitleText.textContent = rosterInfo.title;
   ui.publishedTitle.classList.remove("hidden");
   ui.dataStatus.className = "data-status ready";
@@ -632,7 +696,7 @@ function setErrorState(error) {
   ui.personResults.classList.add("hidden");
   ui.errorPanel.classList.remove("hidden");
   ui.errorMessage.textContent = error?.message || "An unknown PDF parsing error occurred.";
-  ui.facultyCount.textContent = "Roster unavailable";
+  if (ui.facultyCount) ui.facultyCount.textContent = "";
   ui.dataStatus.className = "data-status error";
   ui.dataStatus.innerHTML = "<i></i> Roster error";
   ui.search.disabled = true;
@@ -696,7 +760,7 @@ function renderSuggestions() {
     ui.suggestions.innerHTML = visibleSuggestions
       .map((person, index) => `
         <button class="suggestion" type="button" role="option" data-index="${index}">
-          <span class="suggestion-avatar">${escapeHtml(initialsFromName(person.name))}</span>
+          <span class="suggestion-avatar">${escapeHtml(avatarInitial(person))}</span>
           <span class="suggestion-copy">
             <strong>${escapeHtml(person.name)}</strong>
             <small>${escapeHtml(person.designation)} / ${escapeHtml(person.group)}${person.duties?.length ? "" : " / No duty"}</small>
@@ -750,7 +814,7 @@ function renderFaculty(person) {
   ui.emptyState.classList.add("hidden");
   ui.personResults.classList.remove("hidden");
 
-  ui.facultyAvatar.textContent = initialsFromName(person.name);
+  ui.facultyAvatar.textContent = avatarInitial(person);
   ui.facultyName.textContent = person.name;
   ui.facultyInitial.textContent = person.initial || "Initial not listed";
   ui.facultyDesignation.textContent = contact?.designation || person.designation;
@@ -765,6 +829,11 @@ function renderFaculty(person) {
   ui.facultyEmail.href = contact?.email ? `mailto:${contact.email.split(",")[0].trim()}` : "#";
   ui.contactMatchStatus.textContent = facultyDirectoryStatus(contact, person);
   ui.outsideNotice.classList.toggle("hidden", !person.marked);
+  const annexDuties = person.duties.filter((duty) => duty.annex);
+  if (ui.annexNotice) ui.annexNotice.classList.toggle("hidden", annexDuties.length === 0);
+  if (ui.annexNoticeDetails) {
+    ui.annexNoticeDetails.textContent = `${annexDuties.length} duty${annexDuties.length === 1 ? "" : "ies"} in the Annex Building. Please allow extra travel time before the exam starts.`;
+  }
   ui.totalDuties.textContent = person.duties.length;
   ui.totalDays.textContent = new Set(person.duties.map((duty) => duty.date)).size;
   ui.firstDuty.textContent = person.duties.length ? `${person.duties[0].date}, Slot ${person.duties[0].slot}` : "No duty";
@@ -794,11 +863,12 @@ function renderFaculty(person) {
             </div>
             <div class="daily-slots">
               ${dayGroup.duties.map((duty) => `
-                <div class="duty-slot">
+                <div class="duty-slot${duty.annex ? " duty-slot-annex" : ""}">
                   <span class="slot-badge slot-${duty.slot.toLowerCase()}">${escapeHtml(duty.slot)}</span>
                   <div>
                     <small>Slot ${escapeHtml(duty.slot)}</small>
                     <strong>${escapeHtml(rosterInfo.times[duty.slot] || DEFAULT_TIMES[duty.slot])}</strong>
+                    ${duty.annex ? '<span class="annex-slot-label">ANNEX BUILDING · Allow extra travel time</span>' : ""}
                   </div>
                 </div>
               `).join("")}
@@ -869,12 +939,14 @@ function buildRosterCanvas() {
   if (!selectedFaculty) return null;
   const duties = selectedFaculty.duties;
   const dutyDays = groupDutiesByDate(duties);
+  const annexCount = duties.filter((duty) => duty.annex).length;
+  const annexOffset = annexCount ? 94 : 0;
   const width = 1400;
   const headerHeight = 380;
   const summaryHeight = 170;
   const rowHeight = 132;
   const footerHeight = 150;
-  const height = headerHeight + summaryHeight + Math.max(1, dutyDays.length) * rowHeight + footerHeight;
+  const height = headerHeight + summaryHeight + Math.max(1, dutyDays.length) * rowHeight + footerHeight + annexOffset;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -896,21 +968,32 @@ function buildRosterCanvas() {
   drawText(context, "IMPORTANT REMINDER", 100, 263, { color: "#8a570d", size: 19, weight: 850 });
   drawText(context, "Collect answer scripts and question papers at least 20 minutes before the exam starts.", 100, 296, { color: "#60461d", size: 21, weight: 700 });
 
+  if (annexCount) {
+    context.fillStyle = "#ffeed5";
+    roundedRect(context, 70, 326, width - 140, 82, 13);
+    context.fill();
+    context.strokeStyle = "#cd7b19";
+    context.lineWidth = 3;
+    context.stroke();
+    drawText(context, "ANNEX BUILDING DUTY ALERT", 100, 358, { color: "#7f3c08", size: 24, weight: 900 });
+    drawText(context, `${annexCount} Annex duty${annexCount > 1 ? "ies" : ""} - allow extra travel time.`, 100, 392, { color: "#703f15", size: 19, weight: 700 });
+  }
+
   context.fillStyle = "#ffffff";
-  roundedRect(context, 70, 337, width - 140, 205, 14);
+  roundedRect(context, 70, 337 + annexOffset, width - 140, 205, 14);
   context.fill();
   context.strokeStyle = "#d9dfd8";
   context.lineWidth = 2;
   context.stroke();
-  drawText(context, "PERSONAL DUTY SUMMARY", 100, 382, { color: "#176a45", size: 19, weight: 800 });
-  drawText(context, String(duties.length), 105, 467, { size: 58, weight: 850 });
-  drawText(context, "Total duties", 190, 462, { color: "#68736b", size: 24, weight: 600 });
-  drawText(context, String(new Set(duties.map((duty) => duty.date)).size), 510, 467, { size: 58, weight: 850 });
-  drawText(context, "Duty days", 595, 462, { color: "#68736b", size: 24, weight: 600 });
-  drawText(context, selectedFaculty.contact?.phone ? formatPhoneNumbers(selectedFaculty.contact.phone) : "Phone unavailable", width - 100, 425, { color: "#176a45", size: 21, weight: 700, align: "right" });
-  drawText(context, selectedFaculty.contact?.email || "Email unavailable", width - 100, 462, { color: "#68736b", size: 18, weight: 600, align: "right" });
+  drawText(context, "PERSONAL DUTY SUMMARY", 100, 382 + annexOffset, { color: "#176a45", size: 19, weight: 800 });
+  drawText(context, String(duties.length), 105, 467 + annexOffset, { size: 58, weight: 850 });
+  drawText(context, "Total duties", 190, 462 + annexOffset, { color: "#68736b", size: 24, weight: 600 });
+  drawText(context, String(new Set(duties.map((duty) => duty.date)).size), 510, 467 + annexOffset, { size: 58, weight: 850 });
+  drawText(context, "Duty days", 595, 462 + annexOffset, { color: "#68736b", size: 24, weight: 600 });
+  drawText(context, selectedFaculty.contact?.phone ? formatPhoneNumbers(selectedFaculty.contact.phone) : "Phone unavailable", width - 100, 425 + annexOffset, { color: "#176a45", size: 21, weight: 700, align: "right" });
+  drawText(context, selectedFaculty.contact?.email || "Email unavailable", width - 100, 462 + annexOffset, { color: "#68736b", size: 18, weight: 600, align: "right" });
 
-  let y = 582;
+  let y = 582 + annexOffset;
   if (!duties.length) {
     context.fillStyle = "#ffffff";
     roundedRect(context, 70, y, width - 140, rowHeight - 18, 12);
@@ -935,11 +1018,17 @@ function buildRosterCanvas() {
         C: ["#eaf1fb", "#365d94"],
       };
       const [background, color] = slotColors[duty.slot] || slotColors.A;
-      context.fillStyle = background;
-      roundedRect(context, slotX, rowY + 58, 355, 43, 8);
+      context.fillStyle = duty.annex ? "#ffdfb5" : background;
+      roundedRect(context, slotX, rowY + 58, 355, duty.annex ? 50 : 43, 8);
       context.fill();
-      drawText(context, `Slot ${duty.slot}`, slotX + 18, rowY + 85, { color, size: 18, weight: 900 });
-      drawText(context, rosterInfo.times[duty.slot] || DEFAULT_TIMES[duty.slot], slotX + 337, rowY + 85, { color: "#45534a", size: 16, weight: 700, align: "right" });
+      if (duty.annex) {
+        context.lineWidth = 2;
+        context.strokeStyle = "#c56b0a";
+        context.stroke();
+      }
+      drawText(context, `Slot ${duty.slot}`, slotX + 18, rowY + (duty.annex ? 77 : 85), { color: duty.annex ? "#853c09" : color, size: 18, weight: 900 });
+      drawText(context, rosterInfo.times[duty.slot] || DEFAULT_TIMES[duty.slot], slotX + 337, rowY + (duty.annex ? 77 : 85), { color: duty.annex ? "#853c09" : "#45534a", size: 16, weight: 700, align: "right" });
+      if (duty.annex) drawText(context, "ANNEX BUILDING", slotX + 18, rowY + 100, { color: "#8c2e09", size: 13, weight: 900 });
       slotX += 375;
     });
   });
@@ -1052,8 +1141,10 @@ ui.search.addEventListener("input", () => {
   }
 
 if (!globalThis.__ROSTER_PARSER_TEST__) {
-  bootRosterPage();
-  loadRoster();
+  if (ui.search && ui.reloadButton && ui.suggestions) {
+    bootRosterPage();
+    loadRoster();
+  }
 }
 
 

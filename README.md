@@ -1,91 +1,24 @@
-# Invigilation Duty Finder - Complete v29
+# Invigilation Duty Finder — Version 39
 
-Version 30 keeps all Version 28 logic and replaces the DIU campus image background with a video background.
-
-Upload all files from this package directly to the GitHub repository root.
-
-## Required background video
-
-Upload your background video to the repository root with this exact filename:
-
-```text
-diu.mp4
-```
-
-The site uses this file as a muted, autoplaying, looping background video on every page. If a visitor enables reduced-motion settings, the video is hidden and a soft gradient fallback is shown.
-
-## Pages included
-
-- `index.html` - faculty duty roster search by name or initial
-- `guidelines.html` - examination guidelines and dynamic slot schedule from `duty-roster.pdf`
-- `committee.html` - exam committee contact directory with committee member images
-- `attendance.html` - attendance sheet generator for selected exam date and slot
-
-## Required PDF filenames
-
-```text
-duty-roster.pdf
-faculty-list.pdf
-exam-committee.pdf
-```
-
-Seat-plan PDF filename examples:
-
-```text
-27A_Seat Plan.pdf
-27B_Seat Plan.pdf
-27C_Seat Plan.pdf
-```
-
-## Committee photos
-
-Upload committee member images using the faculty initial as the filename, for example:
-
-```text
-MHS.jpg
-AAK.png
-MJZ.jpeg
-```
-
-The site tries root-level images and common folders such as `images/`, `img/`, `photos/`, `committee-photos/`, and `assets/images/`. It supports `jpg`, `jpeg`, `png`, `gif`, `webp`, `jfif`, and `gpeg`, including uppercase/lowercase variants.
+GitHub Pages static site. Upload every file in this ZIP to the repository root; preserve your `diu.mp4` there if using a video background. There is no server.
 
 ## Attendance generator
 
-The attendance page:
+On the **Attendance Sheet** page, select an exam date and slot. The program uses `duty-roster.pdf` and `faculty-list.pdf`, and reads a corresponding slot-specific seat-plan PDF if present (e.g. `28A_Seat Plan.pdf`). Otherwise it searches a combined day PDF (e.g. `Combine Seat Plan_28.pdf`) and reads **only pages explicitly labelled with the selected date and slot**. The two supplied example PDFs are included for testing.
 
-- reads the roster PDF and faculty list PDF;
-- loads the seat-plan PDF for the selected date and slot;
-- counts students per room;
-- applies the invigilator requirement rule:
-  - `<= 30`: 1 invigilator
-  - `<= 55`: 2 invigilators
-  - `<= 75`: 3 invigilators
-  - `> 75`: 4 invigilators
-- tries not to assign contractual, part-time, or other-department faculty alone;
-- keeps Room `204` reserve logic from Version 26;
-- allows manual editing before download;
-- downloads attendance sheets as PDF and DOCX.
+**Annex duty rule**: A duty letter on a vivid green or strong red cell is an Annex duty for **that particular date and slot**. Only these faculty are eligible for rooms whose names start with `ANX1-`. Once Annex rooms are filled, remaining Annex-marked faculty are placed in `Reserve-Annex`. **Regular, unmarked faculty do not enter Annex rooms or Reserve-Annex.** Normal rooms and reserve Room 204 use the existing assignment priorities, including full-time lecturer preferences.
 
-## GitHub Pages setup
+The on-screen assignments remain editable. PDFs and DOCX files contain distinct Annex and main-building sections, with an explicit page break before the main building. DOCX retains the real black Word header and gray repeating footer. All allocations are provisional until reviewed; a shortage or source-count discrepancy is surfaced as a warning, not concealed.
 
-```text
-Settings > Pages
-Source: Deploy from a branch
-Branch: main
-Folder: / (root)
-```
+The room count rule remains 1 for <=30, 2 for <=55, 3 for <=75, 4 for >75. Both PDF and DOCX outputs support multi-page attendance tables.
 
-After replacing files, wait for GitHub Pages to finish deployment, then hard refresh with `Ctrl + Shift + R`.
+Required source filenames: `duty-roster.pdf`, `faculty-list.pdf`, `exam-committee.pdf`. The included `diu-campus.jpg` is the fallback when `diu.mp4` is unavailable. The existing individual faculty roster search and its Annex highlights are preserved.
 
-## Version
-
-Integrated package version: 29.
-
-## Version 30 background behavior
-
-Upload `diu.mp4` to the repository root for the moving video background. The package also includes `diu-campus.jpg`.
-
-On the Duty Roster page, when an individual faculty roster is opened, the video automatically pauses and the page shows `diu-campus.jpg` behind the roster cards. When the roster result is cleared or hidden, the video background resumes.
+After GitHub deployment, hard-refresh with Ctrl+Shift+R. Do not upload the ZIP itself as a website file; extract it first.
 
 
-Version 33 note: Fixed first-day Slot A detection for the Final Examination Summer 2026 roster. The code now derives the start of duty columns from the roster header, so 19-Aug Slot A entries are detected correctly.
+## Version 40 changes
+
+The PDF and DOCX attendance downloads omit the colored building-section captions under the page metadata. The main building uses **KT** in the upper-right, not `KT-204`; the Annex pages show **ANNEX**. Room 204 and Reserve-Annex still appear inside their respective tables, including when there are no eligible reserve invigilators (blank name/initial cells for manual completion).
+
+The DOCX has separate Word sections for Annex and main buildings, with repeating black headers and a shared gray footer at the bottom of every page. It still starts the main building on a new page. The ordinary faculty roster, contact directory, committee page, and source parser behavior are unchanged.

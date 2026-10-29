@@ -6,16 +6,13 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="theme-color" content="#f4f6f1">
     <title>Attendance Sheet Generator</title>
-    <link rel="stylesheet" href="./styles.css?v=33">
-    <link rel="stylesheet" href="./site-video-background-v30.css?v=33">
+    <link rel="stylesheet" href="./styles.css?v=40">
+    <link rel="stylesheet" href="./site-video-background-v30.css?v=40">
   </head>
   <body class="attendance-classic">
-    <video class="site-bg-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true">
-      <source src="./diu.mp4?v=33" type="video/mp4">
-    </video>
+    <video class="site-bg-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true"><source src="./diu.mp4?v=40" type="video/mp4"></video>
     <div class="site-bg-freeze-photo" aria-hidden="true"></div>
     <div class="site-video-overlay" aria-hidden="true"></div>
-
     <header class="topbar">
       <a class="brand" href="./index.html">
         <span class="brand-mark">CSE</span>
@@ -40,7 +37,7 @@
       <section class="page-heading">
         <p class="eyebrow">Exam committee tool</p>
         <h1>Attendance Sheet Generator</h1>
-        <p>Choose an exam date and slot. The system reads the duty roster, reads the matching seat-plan PDF, assigns invigilators by room, and creates an editable attendance sheet before download.</p>
+        <p>Choose a date and slot to assign Annex Building (color-marked) faculty to ANX1- rooms and all other duty faculty to main-building rooms. Separate building sections are exported to PDF and DOCX.</p>
       </section>
 
       <section class="generator-panel">
@@ -61,7 +58,7 @@
           </label>
           <button class="download-button" id="generateButton" type="button" disabled>Generate sheet</button>
         </div>
-        <p class="file-hint" id="fileHint">Seat-plan PDFs should be uploaded in the repository root. Example: <code>27A_Seat Plan.pdf</code>.</p>
+        <p class="file-hint" id="fileHint">Place <code>28A_Seat Plan.pdf</code> in the repository root, or a combined daily file such as <code>Combine Seat Plan_28.pdf</code>.</p>
       </section>
 
       <section class="error-panel hidden" id="attendanceError" role="alert">
@@ -108,8 +105,8 @@
     <footer class="developer-footer">
       <a href="https://www.facebook.com/mehedihasan.tishan" target="_blank" rel="noopener noreferrer">Developed by Md. Mahedi Hassan</a>
     </footer>
-    <script type="module" src="./theme.js?v=33"></script>
-    <script type="module" src="./attendance.js?v=33"></script>
-      <script type="module" src="./site-video-fallback-v33.js?v=33"></script>
+    <script type="module" src="./theme.js?v=40"></script>
+    <script type="module" src="./attendance.js?v=40"></script>
+    <script type="module" src="./site-video-fallback-v38.js?v=40"></script>
   </body>
 </html>

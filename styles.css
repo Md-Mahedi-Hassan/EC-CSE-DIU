@@ -829,3 +829,51 @@ html[data-theme="dark"] .search-box:focus-within {
     width: 100%;
   }
 }
+
+
+/* Version 38 - Annex Building highlighting (website and print) */
+.annex-notice {
+  display: flex; align-items: flex-start; gap: 13px; margin: 0 0 15px;
+  padding: 17px 19px; border: 2px solid #b86a0c; border-left-width: 6px;
+  border-radius: 9px; background: #fff0d5; color: #723600;
+}
+.annex-notice-icon {
+  flex: none; display: grid; place-items: center; height: 31px; width: 31px;
+  border-radius: 50%; background: #a95608; color: #fff; font-weight: 900;
+}
+.annex-notice strong { color: #753300; font-size: 16px; }
+.annex-notice p { color: #774515; margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+.duty-slot.duty-slot-annex {
+  border: 2px solid #bd6807 !important; border-left-width: 5px !important;
+  background: #fff1d9 !important; box-shadow: inset 0 0 0 1px rgba(192, 93, 4, .10);
+}
+.duty-slot-annex .slot-badge { background: #a45200; color: #fff; }
+.duty-slot-annex .annex-slot-label {
+  display: inline-block; margin-top: 3px; font-size: 10px; letter-spacing: .02em;
+  font-weight: 900; color: #903e04; text-transform: uppercase;
+}
+[data-theme="dark"] .annex-notice { background: #402b16; border-color: #efad4e; }
+[data-theme="dark"] .annex-notice strong,
+[data-theme="dark"] .annex-notice p { color: #ffdb9d; }
+[data-theme="dark"] .duty-slot.duty-slot-annex { background: #3b2919 !important; border-color: #edb257 !important; }
+[data-theme="dark"] .duty-slot-annex .annex-slot-label { color: #ffcf7b; }
+[data-theme="dark"] .duty-slot-annex strong,
+html[data-theme="dark"] .duty-slot-annex strong { color: #fff3de; }
+@media print { .annex-notice, .duty-slot.duty-slot-annex { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+
+
+/* v39: two-building attendance generator, with separated reserve groups. */
+.attendance-classic .content-main { position: relative; z-index: 1; }
+.building-section-title { margin: 22px 0 12px; padding: 15px 19px; border-radius: 11px;
+  font-size: 16px; font-weight: 850; letter-spacing: .012em;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.building-section-title small { font-size: 11px; font-weight: 600; letter-spacing: normal; }
+.building-annex { color:#783909; background:#fff2df; border: 1px solid #e9c69d; }
+.building-main { color:#0c5438; background:#ecf8f0; border: 1px solid #a9d7b9; }
+.assignment-annex { border-left: 4px solid #bc7526 !important; }
+.assignment-main { border-left: 4px solid #24734b !important; }
+.room-shortage { padding: 0 14px 9px; color: #9b3e18; font-weight: 750; font-size: 12px; }
+[data-theme="dark"] .building-annex { color: #ffe1af; background: #3e2a1a; border-color: #8b6336; }
+[data-theme="dark"] .building-main { color: #c9f5db; background: #1a3b2c; border-color: #396a4f; }
+[data-theme="dark"] .room-shortage { color:#ffc5a9; }
+@media(max-width:650px) { .building-section-title { align-items:flex-start;flex-direction:column; } }

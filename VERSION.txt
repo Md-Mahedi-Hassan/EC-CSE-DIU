@@ -1,5 +1,7 @@
-Version 33
-- Fixed first-day Slot A duty detection for the uploaded Final Examination Summer 2026 roster.
-- The parser now calculates the first duty-column boundary from the header columns instead of using a hard-coded page-width threshold.
-- Kept video background, campus-photo fallback, typing freeze, attendance logic, DOCX/PDF behavior, and all Version 32 behavior.
-- Included the uploaded roster as duty-roster.pdf.
+VERSION 40 — Attendance PDF/DOCX parity and reserve placeholders
+
+- Removed "ANNEX BUILDING / Reserve-Annex" and "MAIN BUILDING / Room 204 Reserve" from exported attendance pages.
+- Main-building top-right location is now KT (previously KT-204); Annex remains ANNEX.
+- DOCX uses section-aware, real repeating black Word headers on ALL pages, with ANNEX or KT according to the building and gray bottom page-number footer.
+- Both Reserve-Annex and Room 204 are present and editable even when no reserve invigilator remains, and both appear blank in exports if unassigned.
+- Preserved v39 Annex-first allocation, separation/page break, source parsing, and all other site features.

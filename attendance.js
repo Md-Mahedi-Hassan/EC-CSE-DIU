@@ -1,3 +1,5 @@
+import { parseRosterPdf as parseColorRosterPdf, parseFacultyListPdf as parseCurrentFacultyList } from "./app.js";
+
 const $ = (selector) => document.querySelector(selector);
 
 const ui = {
@@ -167,18 +169,6 @@ function nearestIndex(value, candidates, accessor = (candidate) => candidate) {
   return bestIndex;
 }
 
-
-function dutyColumnStartX(header, pageWidth) {
-  const columns = [...(header?.columns || [])].sort((a, b) => a.x - b.x);
-  if (!columns.length) return pageWidth * 0.48;
-  const gaps = columns
-    .slice(1)
-    .map((column, index) => column.x - columns[index].x)
-    .filter((gap) => Number.isFinite(gap) && gap > 2);
-  const smallestGap = gaps.length ? Math.min(...gaps) : pageWidth * 0.025;
-  return columns[0].x - Math.max(10, Math.min(24, smallestGap * 0.65));
-}
-
 function textInColumn(items, minX, maxX) {
   return cleanText(
     items
@@ -210,7 +200,7 @@ function extractHeader(lines, pageWidth) {
 
   const slotItems = headerLines
     .flatMap((line) => line.items)
-    .filter((item) => /^[ABC]$/.test(item.text) && itemCenter(item) > pageWidth * 0.49)
+    .filter((item) => /^[ABC]$/.test(item.text) && item.x > pageWidth * 0.5)
     .map((item) => ({ slot: item.text, x: itemCenter(item) }))
     .sort((a, b) => a.x - b.x);
 
@@ -268,8 +258,7 @@ function parseFacultyRows(lines, pageNumber, pageWidth, header, currentGroup) {
 
     const rawInitial = textInColumn(remainingItems, pageWidth * 0.33, pageWidth * 0.396).replace(/\s+/g, "");
     const designation = textInColumn(remainingItems, pageWidth * 0.396, pageWidth * 0.515);
-    const dutyStartX = dutyColumnStartX(header, pageWidth);
-    const dutyItems = line.items.filter((item) => itemCenter(item) >= dutyStartX && /^[ABC]$/.test(item.text));
+    const dutyItems = line.items.filter((item) => item.x >= pageWidth * 0.515 && /^[ABC]$/.test(item.text));
     const duties = [];
 
     for (const item of dutyItems) {
@@ -386,20 +375,16 @@ async function parseFacultyListPdf() {
 }
 
 function findFacultyContact(person) {
-  const nameKey = comparableName(person.name);
-  const exactName = facultyContacts.find((record) => comparableName(record.name) === nameKey);
-  if (exactName) return exactName;
-
-  if (person.initial) {
-    const initialMatches = facultyContacts.filter((record) => record.initial === person.initial);
-    if (initialMatches.length === 1) return initialMatches[0];
-    if (initialMatches.length > 1) {
-      return initialMatches
-        .map((record) => ({ record, score: Math.abs(comparableName(record.name).length - nameKey.length) }))
-        .sort((a, b) => a.score - b.score)[0].record;
-    }
-  }
-  return null;
+  const key = comparableName(person.name);
+  const initial = normalize(person.initial);
+  const initialMatches = facultyContacts.filter((record) => initial && normalize(record.initial) === initial);
+  if (initialMatches.length === 1) return initialMatches[0];
+  const exactMatches = initialMatches.filter((record) => comparableName(record.name) === key);
+  if (exactMatches.length === 1) return exactMatches[0];
+  // Never borrow a same-name person's contact when their initials differ.
+  const nameMatches = facultyContacts.filter((record) => comparableName(record.name) === key &&
+    (!initial || !record.initial || normalize(record.initial) === initial));
+  return nameMatches.length === 1 ? nameMatches[0] : null;
 }
 
 function dateParts(label) {
@@ -416,28 +401,40 @@ function seatPlanCandidates(dateLabel, slot) {
   const { day, dayPadded } = dateParts(dateLabel);
   const upperSlot = slot.toUpperCase();
   return [...new Set([
-    `${day}${upperSlot}_Seat Plan.pdf`,
-    `${dayPadded}${upperSlot}_Seat Plan.pdf`,
-    `${day}${upperSlot}_Seat Plan(1).pdf`,
-    `${dayPadded}${upperSlot}_Seat Plan(1).pdf`,
-    `${day}-${upperSlot}_Seat Plan.pdf`,
-    `${dayPadded}-${upperSlot}_Seat Plan.pdf`,
-    `${day}${upperSlot} Seat Plan.pdf`,
-    `${dayPadded}${upperSlot} Seat Plan.pdf`,
-    `seat-plan-${day}-${upperSlot}.pdf`,
-    `seat-plan-${dayPadded}-${upperSlot}.pdf`,
-    `seat_plan_${day}_${upperSlot}.pdf`,
-    `seat_plan_${dayPadded}_${upperSlot}.pdf`,
+    `${day}${upperSlot}_Seat Plan.pdf`, `${dayPadded}${upperSlot}_Seat Plan.pdf`,
+    `${day}${upperSlot}_Seat Plan(1).pdf`, `${dayPadded}${upperSlot}_Seat Plan(1).pdf`,
+    `${day}-${upperSlot}_Seat Plan.pdf`, `${dayPadded}-${upperSlot}_Seat Plan.pdf`,
+    `${day}${upperSlot} Seat Plan.pdf`, `${dayPadded}${upperSlot} Seat Plan.pdf`,
+    `seat-plan-${day}-${upperSlot}.pdf`, `seat-plan-${dayPadded}-${upperSlot}.pdf`,
+    `seat_plan_${day}_${upperSlot}.pdf`, `seat_plan_${dayPadded}_${upperSlot}.pdf`,
+  ])];
+}
+
+function combinedSeatPlanCandidates(dateLabel) {
+  const { day, dayPadded } = dateParts(dateLabel);
+  return [...new Set([
+    `Combine Seat Plan_${day}.pdf`, `Combine Seat Plan_${dayPadded}.pdf`,
+    `Combined Seat Plan_${day}.pdf`, `Combined Seat Plan_${dayPadded}.pdf`,
+    `Seat Plan_${day}.pdf`, `Seat Plan_${dayPadded}.pdf`,
+    `Combine_Seat Plan_${day}.pdf`, `seat-plan-${day}-combined.pdf`,
   ])];
 }
 
 async function firstAvailableSeatPlan(dateLabel, slot) {
-  const candidates = seatPlanCandidates(dateLabel, slot);
-  for (const filename of candidates) {
-    const response = await fetch(`./${filename}?refresh=${Date.now()}`, { cache: "no-store" });
-    if (response.ok) return { filename, data: new Uint8Array(await response.arrayBuffer()) };
+  const individual = seatPlanCandidates(dateLabel, slot);
+  const combined = combinedSeatPlanCandidates(dateLabel);
+  for (const [filename, type] of [
+    ...individual.map((name) => [name, "individual"]),
+    ...combined.map((name) => [name, "combined"]),
+  ]) {
+    const response = await fetch(`./${encodeURIComponent(filename)}?refresh=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) continue;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    // GitHub Pages / hosts can return index.html (HTTP 200) for a missing PDF.
+    if (bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 5)) !== "%PDF-") continue;
+    return { filename, data: bytes, type };
   }
-  throw new Error(`No seat-plan PDF found for ${dateLabel}, Slot ${slot}. Tried: ${candidates.join(", ")}`);
+  throw new Error(`No seat plan found for ${dateLabel} Slot ${slot}. Checked individual PDFs and combined daily PDFs (e.g. Combine Seat Plan_${dateParts(dateLabel).day}.pdf).`);
 }
 
 function parseCountToken(token) {
@@ -482,6 +479,18 @@ function lineCountItems(line) {
 }
 
 function roomStudentCount(room) {
+  const allocationText = room.lines.map((line) => line.text).join(" ");
+  // New format: the summary under each room lists unique course totals,
+  // e.g. "CSE112: 26 seats · CSE213: 26 seats". This is the most reliable
+  // source and handles wrapped/merged columns in the PDF text layer.
+  const courseTotals = [...allocationText.matchAll(/\b[A-Z]{2,5}\d{2,4}:\s*(\d+)\s+seats\b/gi)]
+    .map((match) => Number(match[1]));
+  if (courseTotals.length) return courseTotals.reduce((sum, value) => sum + value, 0);
+  // Fallback for seat plans lacking the room-level course summary.
+  // Sum allocated seat totals, never the available capacity.
+  const allocated = [...allocationText.matchAll(/(\d+)\s+allocated\s*\/\s*\d+/gi)]
+    .map((match) => Number(match[1]));
+  if (allocated.length) return allocated.reduce((sum, value) => sum + value, 0);
   const countLines = room.lines.filter((line) => countLineTotal(line.text) !== null);
   const countLine = countLines.at(-1);
   if (!countLine) return 0;
@@ -516,62 +525,71 @@ function roomStudentCount(room) {
 async function parseSeatPlanPdf(dateLabel, slot) {
   const pdfjs = await getPdfEngine();
   const file = await firstAvailableSeatPlan(dateLabel, slot);
-  const document = await pdfjs.getDocument({ data: file.data }).promise;
+  const pdf = await pdfjs.getDocument({ data: file.data }).promise;
   const pages = [];
+  const { day, month } = dateParts(dateLabel);
+  const expectedMonth = MONTHS[month.toLowerCase()];
+  let rejectedPages = 0;
 
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    const page = await document.getPage(pageNumber);
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
     const content = await page.getTextContent();
-    const items = content.items
-      .filter((item) => item.str?.trim())
-      .map((item) => ({
-        text: cleanText(item.str),
-        x: item.transform[4],
-        y: viewport.height - item.transform[5],
-        width: Math.max(item.width || 0, item.str.length * 2.5),
-      }));
-    pages.push({ lines: groupItemsIntoLines(items) });
+    const items = content.items.filter((item) => item.str?.trim()).map((item) => ({
+      text: cleanText(item.str), x: item.transform[4],
+      y: viewport.height - item.transform[5],
+      width: Math.max(item.width || 0, item.str.length * 2.5),
+    }));
+    const lines = groupItemsIntoLines(items);
+    const pageText = lines.map((line) => line.text).join(" ");
+    const match = pageText.match(/Date\s*:\s*(\d{1,2})-(\d{1,2})-(\d{4})\s+Slot\s*:\s*([ABC])/i);
+    if (match) {
+      if (Number(match[1]) !== Number(day) || Number(match[2]) !== Number(expectedMonth) ||
+          Number(match[3]) !== Number(rosterInfo.year) || match[4].toUpperCase() !== slot.toUpperCase()) {
+        rejectedPages++;
+        continue;
+      }
+    } else if (file.type === "combined") {
+      // Never consume unlabelled pages from a multi-slot PDF.
+      rejectedPages++;
+      continue;
+    }
+    pages.push({ lines });
   }
-
+  if (!pages.length) throw new Error(`${file.filename} contains no verified ${dateLabel} Slot ${slot} pages.`);
   const allLines = pages.flatMap((page) => page.lines);
   const allText = allLines.map((line) => line.text).join(" ");
-  const title = allLines.find((line) => /Examination/i.test(line.text))?.text || "Exam Room Attendance Sheet";
   const dateSlotLine = allLines.find((line) => /Date:\s*\d{1,2}-\d{1,2}-\d{4}.*Slot:/i.test(line.text))?.text || "";
   const timeMatch = dateSlotLine.match(/\(([^)]+)\)/);
   const totalMatch = allText.match(/Total Seat\(s\):\s*(\d+)/i);
   const rooms = [];
-
   let current = null;
-  for (const line of allLines) {
-    const roomMatch = line.text.match(/^Room\s+No\.\s*:\s*(.+)$/i);
-    if (roomMatch) {
-      if (current) rooms.push(current);
-      current = { roomNo: cleanText(roomMatch[1]), lines: [] };
-      continue;
+  for (const page of pages) {
+    // Flush on each page, avoiding running header text into the prior room.
+    if (current) { rooms.push(current); current = null; }
+    for (const line of page.lines) {
+      const match = line.text.match(/^Room\s+No\.\s*:\s*(.+)$/i);
+      if (match) {
+        if (current) rooms.push(current);
+        current = { roomNo: cleanText(match[1]), lines: [] };
+      } else if (current) current.lines.push(line);
     }
-    if (current) current.lines.push(line);
   }
   if (current) rooms.push(current);
-
-  const parsedRooms = rooms
-    .map((room) => {
-      const students = roomStudentCount(room);
-      return {
-        roomNo: room.roomNo,
-        students,
-        required: invigilatorRequirement(students),
-      };
-    })
-    .filter((room) => room.students > 0);
-
+  const parsedRooms = rooms.map((room) => ({
+    roomNo: room.roomNo,
+    students: roomStudentCount(room),
+    required: invigilatorRequirement(roomStudentCount(room)),
+    building: /^ANX1-/i.test(room.roomNo) ? "annex" : "main",
+  })).filter((room) => room.students > 0);
+  if (!parsedRooms.length) throw new Error(`No occupied rooms could be extracted from ${file.filename} for Slot ${slot}.`);
+  const sum = parsedRooms.reduce((total, room) => total + room.students, 0);
+  const declaredTotal = totalMatch ? Number(totalMatch[1]) : null;
   return {
-    filename: file.filename,
-    title,
-    dateText: displayDate(dateLabel),
-    slot,
-    time: timeMatch ? cleanText(timeMatch[1].replace(/\s*-\s*/, " - ")) : rosterInfo.times[slot] || DEFAULT_TIMES[slot],
-    totalStudents: totalMatch ? Number(totalMatch[1]) : parsedRooms.reduce((sum, room) => sum + room.students, 0),
+    filename: file.filename, sourceType: file.type, pagesRead: pages.length,
+    dateText: displayDate(dateLabel), slot,
+    time: timeMatch ? cleanText(timeMatch[1]) : rosterInfo.times[slot] || DEFAULT_TIMES[slot],
+    totalStudents: sum, declaredTotal, totalMismatch: declaredTotal !== null && declaredTotal !== sum,
     rooms: parsedRooms,
   };
 }
@@ -617,8 +635,10 @@ function buildDutyPool(dateLabel, slot) {
     .filter((person) => person.duties.some((duty) => duty.date === dateLabel && duty.slot === slot))
     .map((person) => {
       const contact = findFacultyContact(person);
+      const matchedDuty = person.duties.find((duty) => duty.date === dateLabel && duty.slot === slot);
       return {
         ...person,
+        annex: Boolean(matchedDuty?.annex),
         contact,
         category: facultyCategory({ ...person, contact }),
       };
@@ -633,7 +653,7 @@ function takeFirst(pool, predicate = () => true) {
 
 
 function removeFromPool(pool, person) {
-  const index = pool.findIndex((candidate) => candidate.id === person.id);
+  const index = pool.findIndex((candidate) => candidate === person || (person.id && candidate.id === person.id));
   if (index >= 0) pool.splice(index, 1);
 }
 
@@ -652,7 +672,7 @@ function reserveRoomCandidates(pool) {
   return pool.filter((person) => person.category === "fulltime");
 }
 
-function assignInvigilators(rooms, dutyPool) {
+function assignMainInvigilators(rooms, dutyPool) {
   const requiredTotal = rooms.reduce((sum, room) => sum + room.required, 0);
   const extraCount = Math.max(0, dutyPool.length - requiredTotal);
   const reserve = [];
@@ -729,39 +749,97 @@ function assignInvigilators(rooms, dutyPool) {
     warnings.push(`${pool.length} extra non-reserve invigilator${pool.length > 1 ? "s were" : " was"} added to regular room assignments for manual review instead of Room 204.`);
   }
 
+  // Room 204 must always exist in the editable sheet and the exports.
+  // With no eligible reserves it is an intentionally blank row for the committee.
+  assignments.push({
+    roomNo: "204",
+    students: 0,
+    required: reserve.length,
+    isExtraRoom: true,
+    invigilators: reserve.map((person) => ({
+      name: personLabel(person),
+      initial: person.initial || "",
+      category: person.category,
+    })),
+  });
   if (reserve.length) {
-    assignments.push({
-      roomNo: "204",
-      students: 0,
-      required: reserve.length,
-      isExtraRoom: true,
-      invigilators: reserve.map((person) => ({
-        name: personLabel(person),
-        initial: person.initial || "",
-        category: person.category,
-      })),
-    });
     warnings.push(`${reserve.length} extra full-time lecturer/senior lecturer invigilator${reserve.length > 1 ? "s were" : " was"} randomly assigned to Room 204 at the end of the attendance sheet.`);
   }
 
   return { assignments, warnings };
 }
+// Building isolation is a safety boundary: no green/red Annex duty may be
+// assigned to the main building, and no unmarked duty may enter Annex rooms.
+function assignInvigilators(rooms, dutyPool) {
+  const annexRooms = rooms.filter((room) => /^ANX1-/i.test(room.roomNo));
+  const mainRooms = rooms.filter((room) => !/^ANX1-/i.test(room.roomNo));
+  const annexPool = dutyPool.filter((person) => person.annex);
+  const regularPool = dutyPool.filter((person) => !person.annex);
+  const warnings = [];
+  const annexAssignments = [];
+  const availableAnnex = [...annexPool];
+  for (const room of annexRooms) {
+    const invigilators = [];
+    const fulltime = takeFirst(availableAnnex, (p) => p.category === "fulltime");
+    if (fulltime) invigilators.push(fulltime);
+    while (invigilators.length < room.required) {
+      const next = takeFirst(availableAnnex);
+      if (!next) break;
+      invigilators.push(next);
+    }
+    if (invigilators.length < room.required) {
+      warnings.push(`ANNEX SHORTAGE: ${room.roomNo} needs ${room.required}, only ${invigilators.length} Annex-marked faculty available. Do not fill from regular staff.`);
+    }
+    annexAssignments.push({ ...room, building: "annex", invigilators: invigilators.map(teacherFromPerson) });
+  }
+  // Always provide a Reserve-Annex row, including when no Annex staff remain.
+  annexAssignments.push({
+    roomNo: "Reserve-Annex", building: "annex", students: 0,
+    required: availableAnnex.length, isExtraRoom: true,
+    invigilators: availableAnnex.map(teacherFromPerson),
+  });
+  if (annexRooms.length && !annexPool.length) warnings.push("ANNEX SHORTAGE: No color-marked Annex duty faculty found for these Annex rooms. Please check the roster colors.");
+  if (annexPool.length && !annexRooms.length) warnings.push("The roster marks Annex duties but the selected seat plan has no ANX1- rooms; all such faculty are assigned to Reserve-Annex.");
+  const main = assignMainInvigilators(mainRooms, regularPool);
+  const mainAssignments = main.assignments.map((room) => ({ ...room, building: "main" }));
+  warnings.push(...main.warnings);
+  // Never silently swap Annex/regular faculty between building groups.
+  return { assignments: [...annexAssignments, ...mainAssignments], warnings,
+    counts: { annexRooms: annexRooms.length, mainRooms: mainRooms.length,
+      annexFaculty: annexPool.length, regularFaculty: regularPool.length,
+      annexReserve: availableAnnex.length },
+  };
+}
+
+function teacherFromPerson(person) {
+  return { name: personLabel(person), initial: person.initial || "", category: person.category,
+    annex: Boolean(person.annex) };
+}
+
 function renderOptions() {
   ui.dateSelect.innerHTML = rosterInfo.dates
     .map((date) => `<option value="${escapeHtml(date.label)}">${escapeHtml(date.day ? `${date.day}, ${date.label}` : date.label)}</option>`)
     .join("");
-  ui.slotSelect.value = "A";
+  updateAvailableSlots();
   ui.dateSelect.disabled = false;
   ui.slotSelect.disabled = false;
   ui.generateButton.disabled = false;
   updateFileHint();
 }
 
+function updateAvailableSlots() {
+  const slots = rosterInfo.slotsByDate?.[ui.dateSelect.value] || ["A", "B", "C"];
+  const previous = ui.slotSelect.value;
+  ui.slotSelect.innerHTML = slots.map((slot) => `<option value="${escapeHtml(slot)}">${escapeHtml(slot)}</option>`).join("");
+  if (slots.includes(previous)) ui.slotSelect.value = previous;
+}
+
 function updateFileHint() {
   const date = ui.dateSelect.value;
   const slot = ui.slotSelect.value;
-  const candidates = seatPlanCandidates(date, slot).slice(0, 4).join(", ");
-  ui.fileHint.innerHTML = `For ${escapeHtml(date)} Slot ${escapeHtml(slot)}, this page will try: <code>${escapeHtml(candidates)}</code>.`;
+  const individual = seatPlanCandidates(date, slot)[0];
+  const combined = combinedSeatPlanCandidates(date)[0];
+  ui.fileHint.innerHTML = `For ${escapeHtml(date)} Slot ${escapeHtml(slot)}, first look for <code>${escapeHtml(individual)}</code>; if missing, read only Slot ${escapeHtml(slot)} pages in <code>${escapeHtml(combined)}</code>.`;
 }
 
 function setStatus(kind, text) {
@@ -782,31 +860,29 @@ function clearError() {
 
 function renderAssignments(sheet) {
   ui.assignmentTitle.textContent = `${sheet.seatPlan.dateText}, Slot ${sheet.seatPlan.slot} (${sheet.seatPlan.time})`;
-  ui.assignmentList.innerHTML = sheet.assignments
-    .map((room, roomIndex) => `
-      <article class="assignment-room" data-room-index="${roomIndex}">
-        <div class="assignment-room-head">
-          <div>
-            <strong>Room ${escapeHtml(room.roomNo)}</strong>
-            <span>${room.isExtraRoom ? `Extra roster invigilator${room.invigilators.length > 1 ? "s" : ""}` : `${room.students} students / ${room.required} invigilator${room.required > 1 ? "s" : ""}`}</span>
-          </div>
-          <button class="quiet-button add-invigilator" type="button">Add invigilator</button>
-        </div>
-        <div class="assignment-teachers">
-          ${room.invigilators.map((teacher, teacherIndex) => teacherInputRow(roomIndex, teacherIndex, teacher)).join("")}
-        </div>
-      </article>
-    `)
-    .join("");
-
+  let lastBuilding = "";
+  ui.assignmentList.innerHTML = sheet.assignments.map((room, roomIndex) => {
+    let heading = "";
+    if (room.building !== lastBuilding) {
+      heading = `<div class="building-section-title ${room.building === "annex" ? "building-annex" : "building-main"}">
+        ${room.building === "annex" ? "ANNEX BUILDING — color-marked invigilators" : "MAIN BUILDING — regular invigilators"}
+        <small>${room.building === "annex" ? "Annex rooms first · Reserve-Annex last" : "Separate PDF / DOCX section · Room 204 reserve"}</small>
+      </div>`;
+      lastBuilding = room.building;
+    }
+    return `${heading}<article class="assignment-room ${room.building === "annex" ? "assignment-annex" : "assignment-main"}" data-room-index="${roomIndex}">
+      <div class="assignment-room-head"><div>
+        <strong>${escapeHtml(room.roomNo === "Reserve-Annex" ? room.roomNo : `Room ${room.roomNo}`)}</strong>
+        <span>${room.isExtraRoom ? "Reserve / extra roster invigilators" : `${room.students} students / ${room.required} required invigilator(s)`}</span>
+      </div><button class="quiet-button add-invigilator" type="button">Add invigilator</button></div>
+      <div class="assignment-teachers">${room.invigilators.map((person, i) => teacherInputRow(roomIndex, i, person)).join("")}</div>
+      ${room.invigilators.length < room.required && !room.isExtraRoom ? '<p class="room-shortage">Unfilled positions: manual review required</p>' : ''}
+    </article>`;
+  }).join("");
   if (sheet.warnings.length) {
     ui.warningList.innerHTML = sheet.warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("");
     ui.warningList.classList.remove("hidden");
-  } else {
-    ui.warningList.innerHTML = "";
-    ui.warningList.classList.add("hidden");
-  }
-
+  } else { ui.warningList.innerHTML = ""; ui.warningList.classList.add("hidden"); }
   ui.assignmentPanel.classList.remove("hidden");
 }
 
@@ -839,7 +915,8 @@ async function generateSheet() {
     if (!dutyPool.length) throw new Error(`No duty-roster faculty were found for ${dateLabel}, Slot ${slot}.`);
 
     const result = assignInvigilators(seatPlan.rooms, dutyPool);
-    currentSheet = { seatPlan, dutyPool, assignments: result.assignments, warnings: result.warnings };
+    if (seatPlan.totalMismatch) result.warnings.unshift(`STUDENT COUNT MISMATCH: seat plan declares ${seatPlan.declaredTotal} seats but room totals add up to ${seatPlan.totalStudents}. Review PDF parsing before export.`);
+    currentSheet = { seatPlan, dutyPool, assignments: result.assignments, warnings: result.warnings, counts: result.counts };
 
     ui.seatPlanName.textContent = seatPlan.filename;
     ui.roomCount.textContent = seatPlan.rooms.length;
@@ -938,9 +1015,10 @@ function drawCellText(context, text, x, y, width, rowHeight, options = {}) {
 
 function sheetRows(assignments) {
   return assignments.flatMap((room) =>
-    room.invigilators.map((teacher, index) => ({
+    (room.invigilators.length ? room.invigilators : [{ name: room.isExtraRoom ? "" : "UNASSIGNED - REVIEW REQUIRED", initial: "" }]).map((teacher, index) => ({
       roomNo: index === 0 ? room.roomNo : "",
       roomGroup: room.roomNo,
+      building: room.building,
       name: displayTeacherName(teacher.name, teacher.initial),
       initial: teacher.initial,
     })),
@@ -975,7 +1053,7 @@ function paginateRows(rows) {
   return pages;
 }
 
-function drawAttendancePage(sheet, rows, pageNumber, pageCount) {
+function drawAttendancePage(sheet, rows, pageNumber, pageCount, building) {
   const scale = 2;
   const width = 612;
   const height = 792;
@@ -1002,7 +1080,7 @@ function drawAttendancePage(sheet, rows, pageNumber, pageCount) {
   context.fillText(`Date: ${sheet.seatPlan.dateText}`, 38, 94);
   context.fillText(`Exam Time: ${sheet.seatPlan.time}`, 180, 94);
   context.fillText(`Slot: ${sheet.seatPlan.slot}`, 415, 94);
-  context.fillText("Center: 204 KT", 485, 94);
+  context.fillText(building === "annex" ? "ANNEX" : "KT", 485, 94);
 
   const start = parseStartTime(sheet.seatPlan.time);
   const before = start === null ? "Before" : `Before ${formatTimeFromMinutes(start - 20)}`;
@@ -1010,7 +1088,7 @@ function drawAttendancePage(sheet, rows, pageNumber, pageCount) {
   const after = start === null ? "After" : `After ${formatTimeFromMinutes(start - 10)}`;
 
   const x = [34, 78, 278, 342, 408, 476, 536, 578];
-  const headerY = 126;
+  const headerY = 114;
   const headerHeight = 56;
   const contentTop = headerY + headerHeight;
   const tableEnd = contentTop + rows.reduce((sum, row) => sum + row.height, 0);
@@ -1049,7 +1127,11 @@ function drawAttendancePage(sheet, rows, pageNumber, pageCount) {
     drawCellText(context, row.initial, x[2], y, x[3] - x[2], row.height, { weight: 700, size: 11, align: "center" });
 
     if (isRoomEnd) {
-      drawCellText(context, roomNo, x[0], groupStartY, x[1] - x[0], rowBottom - groupStartY, { weight: 700, size: 11, align: "center" });
+      const roomDisplay = roomNo.startsWith("ANX1-") || roomNo === "Reserve-Annex"
+        ? roomNo.replace("-", "- ") : roomNo;
+      drawCellText(context, roomDisplay, x[0], groupStartY, x[1] - x[0], rowBottom - groupStartY,
+        { weight: 700, size: roomNo === "Reserve-Annex" ? 8 : roomNo.startsWith("ANX1-") ? 9 : 11,
+          lineHeight: 11, align: "center" });
     }
 
     context.beginPath();
@@ -1080,14 +1162,17 @@ async function downloadAttendancePdf() {
   ui.downloadButton.textContent = "Preparing PDF";
 
   try {
-    const rows = sheetRows(currentSheet.assignments);
-    if (!rows.length) throw new Error("There are no invigilator rows to export.");
-    const pages = paginateRows(rows);
+    const grouped = ["annex", "main"].map((building) => ({
+      building, assignments: currentSheet.assignments.filter((room) => room.building === building),
+    })).filter((group) => group.assignments.length);
+    const pages = grouped.flatMap((group) => paginateRows(sheetRows(group.assignments))
+      .map((rows) => ({ rows, building: group.building })));
+    if (!pages.length) throw new Error("There are no room assignments to export.");
     const { PDFDocument } = await import("./pdf-lib.min.js");
     const pdf = await PDFDocument.create();
 
     for (let index = 0; index < pages.length; index += 1) {
-      const canvas = drawAttendancePage(currentSheet, pages[index], index + 1, pages.length);
+      const canvas = drawAttendancePage(currentSheet, pages[index].rows, index + 1, pages.length, pages[index].building);
       const image = await pdf.embedPng(canvas.toDataURL("image/png"));
       const page = pdf.addPage([612, 792]);
       page.drawImage(image, { x: 0, y: 0, width: 612, height: 792 });
@@ -1151,7 +1236,7 @@ function docxCell(content, width, options = {}) {
 function docxAttendanceRows(assignments) {
   const rows = [];
   for (const room of assignments) {
-    const invigilators = room.invigilators.length ? room.invigilators : [{ name: "", initial: "" }];
+    const invigilators = room.invigilators.length ? room.invigilators : [{ name: room.isExtraRoom ? "" : "UNASSIGNED - REVIEW REQUIRED", initial: "" }];
     invigilators.forEach((teacher, index) => {
       rows.push({
         roomNo: room.roomNo,
@@ -1174,13 +1259,13 @@ function docxTimingLabels(sheet) {
   };
 }
 
-function docxHeaderXml(sheet) {
+function docxHeaderXml(sheet, building = "annex") {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   ${docxParagraph("Daffodil International University", { align: "center", bold: true, color: "000000", size: 28, after: 20 })}
   ${docxParagraph("Exam Room Attendance Sheet", { align: "center", bold: true, color: "000000", size: 28, after: 20 })}
   ${docxParagraph(cleanExamTitle(), { align: "center", bold: true, color: "000000", size: 26, after: 120 })}
-  ${docxParagraph(`Date: ${sheet.seatPlan.dateText}        Exam Time: ${sheet.seatPlan.time}        Slot: ${sheet.seatPlan.slot}        Center: 204 KT`, { align: "center", bold: true, color: "000000", size: 22, after: 0 })}
+  ${docxParagraph(`Date: ${sheet.seatPlan.dateText}        Exam Time: ${sheet.seatPlan.time}        Slot: ${sheet.seatPlan.slot}        ${building === "annex" ? "ANNEX" : "KT"}`, { align: "center", bold: true, color: "000000", size: 22, after: 0 })}
 </w:hdr>`;
 }
 
@@ -1212,10 +1297,8 @@ function docxFooterXml() {
 </w:ftr>`;
 }
 
-function docxDocumentXml(sheet) {
-  const { before, middle, after } = docxTimingLabels(sheet);
-  const widths = [760, 3420, 1060, 1420, 1420, 1280, 900];
-  const rows = docxAttendanceRows(sheet.assignments);
+function docxAttendanceTable(rows, before, middle, after) {
+  const widths = [1400, 2910, 1060, 1400, 1400, 1240, 850];
   const tableRows = rows.map((row) => `
     <w:tr>
       ${docxCell(row.showRoom ? row.roomNo : "", widths[0], { align: "center", bold: true, merge: row.merge })}
@@ -1225,12 +1308,8 @@ function docxDocumentXml(sheet) {
       ${docxCell("", widths[4])}
       ${docxCell("", widths[5])}
       ${docxCell("", widths[6])}
-    </w:tr>
-  `).join("");
-
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <w:body>
+    </w:tr>`).join("");
+  return `
     <w:tbl>
       <w:tblPr>
         <w:tblW w:w="10260" w:type="dxa"/>
@@ -1261,13 +1340,36 @@ function docxDocumentXml(sheet) {
         ${docxCell("Comment (For Exam Committee)", widths[6], { align: "center", bold: true, shade: "F1F3F0", size: 18 })}
       </w:tr>
       ${tableRows}
-    </w:tbl>
-    <w:sectPr>
-      <w:headerReference w:type="default" r:id="rId3"/>
-      <w:footerReference w:type="default" r:id="rId4"/>
-      <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="1900" w:right="720" w:bottom="900" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>
-    </w:sectPr>
+    </w:tbl>`;
+}
+
+function docxSectionProperties(headerRelId, sectionType = null) {
+  return `<w:sectPr>
+    ${sectionType ? `<w:type w:val="${sectionType}"/>` : ""}
+    <w:headerReference w:type="default" r:id="${headerRelId}"/>
+    <w:footerReference w:type="default" r:id="rId4"/>
+    <w:pgSz w:w="12240" w:h="15840"/>
+    <w:pgMar w:top="1900" w:right="720" w:bottom="900" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>
+  </w:sectPr>`;
+}
+
+function docxDocumentXml(sheet) {
+  const { before, middle, after } = docxTimingLabels(sheet);
+  const annex = sheet.assignments.filter((room) => room.building === "annex");
+  const main = sheet.assignments.filter((room) => room.building === "main");
+  // A section break starts the main building on a new page and switches to
+  // its own repeating black Word header (KT, not KT-204). The Annex table
+  // has a separate repeating header showing ANNEX.
+  const annexTable = annex.length ? docxAttendanceTable(docxAttendanceRows(annex), before, middle, after) : "";
+  const mainTable = main.length ? docxAttendanceTable(docxAttendanceRows(main), before, middle, after) : "";
+  const annexSectionBreak = annex.length && main.length
+    ? `<w:p><w:pPr>${docxSectionProperties("rId3", "nextPage")}</w:pPr></w:p>` : "";
+  const finalSectionHeaderId = main.length ? "rId5" : "rId3";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    ${annexTable}${annexSectionBreak}${mainTable}
+    ${docxSectionProperties(finalSectionHeaderId)}
   </w:body>
 </w:document>`;
 }
@@ -1369,7 +1471,7 @@ function attendanceDocxBlob(sheet) {
   return makeZip([
     {
       name: "[Content_Types].xml",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`,
     },
     {
       name: "_rels/.rels",
@@ -1377,7 +1479,7 @@ function attendanceDocxBlob(sheet) {
     },
     {
       name: "word/_rels/document.xml.rels",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/></Relationships>`,
     },
     {
       name: "word/styles.xml",
@@ -1395,7 +1497,8 @@ function attendanceDocxBlob(sheet) {
       name: "docProps/app.xml",
       data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Invigilation Duty Finder</Application></Properties>`,
     },
-    { name: "word/header1.xml", data: docxHeaderXml(sheet) },
+    { name: "word/header1.xml", data: docxHeaderXml(sheet, "annex") },
+    { name: "word/header2.xml", data: docxHeaderXml(sheet, "main") },
     { name: "word/footer1.xml", data: docxFooterXml(sheet) },
     { name: "word/document.xml", data: docxDocumentXml(sheet) },
   ]);
@@ -1429,7 +1532,7 @@ async function downloadAttendanceDocx() {
 async function loadInitialData() {
   try {
     setStatus("", "Reading roster");
-    const [parsedRoster, contacts] = await Promise.all([parseRosterPdf(), parseFacultyListPdf()]);
+    const [parsedRoster, contacts] = await Promise.all([parseColorRosterPdf(), parseCurrentFacultyList()]);
     rosterInfo = parsedRoster.info;
     faculty = parsedRoster.people;
     facultyContacts = contacts;
@@ -1441,7 +1544,7 @@ async function loadInitialData() {
   }
 }
 
-ui.dateSelect.addEventListener("change", updateFileHint);
+ui.dateSelect.addEventListener("change", () => { updateAvailableSlots(); updateFileHint(); });
 ui.slotSelect.addEventListener("change", updateFileHint);
 ui.generateButton.addEventListener("click", generateSheet);
 ui.regenerateButton.addEventListener("click", generateSheet);
@@ -1481,6 +1584,6 @@ export {
   docxAttendanceRows,
   invigilatorRequirement,
   parseCountToken,
-  seatPlanCandidates,
-  sheetRows,
+  seatPlanCandidates, combinedSeatPlanCandidates, parseSeatPlanPdf, roomStudentCount,
+  docxDocumentXml, docxHeaderXml, docxFooterXml, sheetRows, drawAttendancePage,
 };
